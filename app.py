@@ -1,7 +1,7 @@
 import json
 import os
 import smtplib
-from datetime import datetime
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -12,7 +12,7 @@ import plotly.express as px
 DATE_RANGE = "2026-10-09 a 2026-10-12"
 ALERT_THRESHOLD_CLP = 190000
 ALERT_EMAIL = "fisalgadov@gmail.com"
-ALERT_STATE_FILE = Path("/tmp/pasajes_alert_state.json")
+ALERT_STATE_FILE = Path(os.getenv("ALERT_STATE_FILE", "/tmp/pasajes_alert_state.json"))
 
 
 def get_offers() -> pd.DataFrame:
@@ -164,7 +164,7 @@ def _save_alert_state(state: dict) -> None:
     ALERT_STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
 
 
-def _send_email(subject: str, body: str) -> bool:
+def _send_email(subject: str, body: str) -> tuple[bool, str | None]:
     smtp_host = os.getenv("SMTP_HOST")
     smtp_user = os.getenv("SMTP_USER")
     smtp_password = os.getenv("SMTP_PASSWORD")
@@ -172,7 +172,7 @@ def _send_email(subject: str, body: str) -> bool:
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
 
     if not all([smtp_host, smtp_user, smtp_password, smtp_from]):
-        return False
+        return False, "Configura SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD y SMTP_FROM."
 
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -180,11 +180,14 @@ def _send_email(subject: str, body: str) -> bool:
     msg["To"] = ALERT_EMAIL
     msg.set_content(body)
 
-    with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
-    return True
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+    except (smtplib.SMTPException, OSError) as exc:
+        return False, f"Error SMTP: {exc}"
+    return True, None
 
 
 def check_and_notify(offers: pd.DataFrame) -> str:
@@ -211,13 +214,14 @@ def check_and_notify(offers: pd.DataFrame) -> str:
     body = (
         f"Se detectaron pasajes por debajo de CLP {format_currency(ALERT_THRESHOLD_CLP)}.\n\n"
         + "\n".join(lines)
-        + f"\n\nGenerado: {datetime.utcnow().isoformat()}Z"
+        + f"\n\nGenerado: {datetime.now(timezone.utc).isoformat()}"
     )
 
-    if not _send_email("Alerta de pasajes Santiago-Lima", body):
+    sent, error = _send_email("Alerta de pasajes Santiago-Lima", body)
+    if not sent:
         return (
             "Se detectaron pasajes bajo el umbral, pero no se pudo enviar correo. "
-            "Configura SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD y SMTP_FROM."
+            f"{error}"
         )
 
     for key, _ in new_bargains:
