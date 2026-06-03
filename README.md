@@ -27,6 +27,7 @@ Para habilitar el envío, configura variables de entorno SMTP:
 - `SMTP_USER`
 - `SMTP_PASSWORD`
 - `SMTP_FROM`
+- `ALERT_EMAIL` (opcional, por defecto `fisalgadov@gmail.com`)
 
 ## Ejecutar localmente
 

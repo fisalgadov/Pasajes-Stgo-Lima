@@ -11,7 +11,7 @@ import plotly.express as px
 
 DATE_RANGE = "2026-10-09 a 2026-10-12"
 ALERT_THRESHOLD_CLP = 190000
-ALERT_EMAIL = "fisalgadov@gmail.com"
+ALERT_EMAIL = os.getenv("ALERT_EMAIL", "fisalgadov@gmail.com")
 ALERT_STATE_FILE = Path(os.getenv("ALERT_STATE_FILE", "/tmp/pasajes_alert_state.json"))
 
 
