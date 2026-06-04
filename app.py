@@ -5,9 +5,9 @@ from datetime import datetime, timezone
 from email.message import EmailMessage
 from pathlib import Path
 
-import gradio as gr
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 
 DATE_RANGE = "2026-10-09 a 2026-10-12"
 ALERT_THRESHOLD_CLP = 190000
@@ -231,52 +231,43 @@ def check_and_notify(offers: pd.DataFrame) -> str:
     return f"Alerta enviada a {ALERT_EMAIL} para {len(new_bargains)} pasaje(s) bajo el umbral."
 
 
-def refresh_dashboard():
-    offers = get_offers().sort_values(["fecha_viaje", "precio_clp"]).reset_index(drop=True)
-    history = get_price_history()
-    options = offer_options(offers)
-    default_index = options[0][1]
-    detail = offer_detail(offers, default_index)
-    chart = build_chart(history)
-    return table_html(offers), chart, gr.update(choices=options, value=default_index), detail
-
-
-def update_detail(selected_index: int):
-    offers = get_offers().sort_values(["fecha_viaje", "precio_clp"]).reset_index(drop=True)
-    return offer_detail(offers, selected_index)
-
-
 def run_alert():
     offers = get_offers().sort_values(["fecha_viaje", "precio_clp"]).reset_index(drop=True)
     return check_and_notify(offers)
 
 
-with gr.Blocks(title="Pasajes Santiago-Lima") as demo:
-    gr.Markdown(
-        f"# Seguimiento de pasajes Santiago → Lima\n"
+def render_streamlit_app() -> None:
+    st.set_page_config(page_title="Pasajes Santiago-Lima", page_icon="✈️", layout="wide")
+    st.title("Seguimiento de pasajes Santiago → Lima")
+    st.markdown(
         f"Rango solicitado: **{DATE_RANGE}**\n\n"
-        f"Se muestra detalle de vuelos, links por precio y evolución de valores en CLP."
+        "Se muestra detalle de vuelos, links por precio y evolución de valores en CLP."
     )
 
-    offers_html = gr.HTML()
-    price_chart = gr.Plot()
-    flight_selector = gr.Dropdown(label="Selecciona un pasaje para ver detalle")
-    flight_detail = gr.Markdown()
-    alert_status = gr.Markdown()
-    refresh_button = gr.Button("Actualizar datos")
-    alert_button = gr.Button(f"Enviar alerta si baja de CLP {format_currency(ALERT_THRESHOLD_CLP)}")
+    if st.button("Actualizar datos"):
+        st.rerun()
 
-    demo.load(
-        refresh_dashboard,
-        outputs=[offers_html, price_chart, flight_selector, flight_detail],
+    offers = get_offers().sort_values(["fecha_viaje", "precio_clp"]).reset_index(drop=True)
+    history = get_price_history()
+
+    st.subheader("Ofertas actuales")
+    st.markdown(table_html(offers), unsafe_allow_html=True)
+
+    st.subheader("Evolución de precios")
+    st.plotly_chart(build_chart(history), use_container_width=True)
+
+    st.subheader("Detalle de pasaje")
+    options = offer_options(offers)
+    option_map = {label: index for label, index in options}
+    selected_label = st.selectbox(
+        "Selecciona un pasaje para ver detalle",
+        options=list(option_map.keys()),
     )
-    refresh_button.click(
-        refresh_dashboard,
-        outputs=[offers_html, price_chart, flight_selector, flight_detail],
-    )
-    flight_selector.change(update_detail, inputs=flight_selector, outputs=flight_detail)
-    alert_button.click(run_alert, outputs=alert_status)
+    st.markdown(offer_detail(offers, option_map[selected_label]))
+
+    if st.button(f"Enviar alerta si baja de CLP {format_currency(ALERT_THRESHOLD_CLP)}"):
+        st.info(run_alert())
 
 
 if __name__ == "__main__":
-    demo.launch()
+    render_streamlit_app()
