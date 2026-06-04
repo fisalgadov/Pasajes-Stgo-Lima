@@ -1,3 +1,14 @@
+---
+title: Pasajes Stgo Lima
+emoji: ✈️
+colorFrom: blue
+colorTo: green
+sdk: gradio
+sdk_version: 5.34.0
+app_file: app.py
+pinned: false
+---
+
 # Pasajes-Stgo-Lima
 
 Aplicación de Hugging Face (Gradio) para visualizar pasajes Santiago → Lima del **9 al 12 de octubre de 2026**.
