@@ -6,8 +6,12 @@ from email.message import EmailMessage
 from pathlib import Path
 
 import pandas as pd
-import plotly.express as px
 import streamlit as st
+
+try:
+    import plotly.express as px
+except ModuleNotFoundError:
+    px = None
 
 DATE_RANGE = "2026-10-09 a 2026-10-12"
 ALERT_THRESHOLD_CLP = 190000
@@ -114,9 +118,17 @@ def table_html(offers: pd.DataFrame) -> str:
     )
 
 
-def build_chart(price_history: pd.DataFrame):
+def prepare_chart_data(price_history: pd.DataFrame) -> pd.DataFrame:
     chart_data = price_history.copy()
     chart_data["captura"] = pd.to_datetime(chart_data["captura"])
+    return chart_data
+
+
+def build_fallback_chart_data(chart_data: pd.DataFrame) -> pd.DataFrame:
+    return chart_data.pivot(index="captura", columns="fecha_viaje", values="precio_clp").sort_index()
+
+
+def build_chart(chart_data: pd.DataFrame):
     return px.line(
         chart_data,
         x="captura",
@@ -254,7 +266,12 @@ def render_streamlit_app() -> None:
     st.markdown(table_html(offers), unsafe_allow_html=True)
 
     st.subheader("Evolución de precios")
-    st.plotly_chart(build_chart(history), use_container_width=True)
+    chart_data = prepare_chart_data(history)
+    if px is None:
+        st.line_chart(build_fallback_chart_data(chart_data), use_container_width=True)
+        st.caption("Visualización simplificada porque Plotly no está disponible en el entorno.")
+    else:
+        st.plotly_chart(build_chart(chart_data), use_container_width=True)
 
     st.subheader("Detalle de pasaje")
     options = offer_options(offers)
